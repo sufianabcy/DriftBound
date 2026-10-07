@@ -1,0 +1,19 @@
+[project]
+name = "driftbound"
+version = "0.1.0"
+description = "Streaming classifier that detects concept drift and relearns, with proven bounds"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+extend-exclude = ["web", "notebooks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+ignore = ["E501", "SIM102", "SIM108"]

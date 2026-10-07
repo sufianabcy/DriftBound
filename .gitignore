@@ -1,0 +1,16 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Local settings and data: never commit secrets or databases
+.env
+*.db
+*.db-journal
+models/
+
+# OS and editors
+.DS_Store
+.idea/

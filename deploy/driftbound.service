@@ -1,0 +1,16 @@
+[Unit]
+Description=DriftBound API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ec2-user
+WorkingDirectory=/home/ec2-user/driftbound
+EnvironmentFile=/etc/driftbound.env
+# One worker only: each live run's state lives in this process's memory.
+ExecStart=/home/ec2-user/driftbound/.venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 80
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
