@@ -19,7 +19,9 @@ class Settings(BaseSettings):
     models_dir: str = "models"
     aws_region: str = "ap-south-1"
     web_dist: str = "web/dist"
-    max_live_runs: int = 12  # runs kept in memory; unwatched, older ones are evicted first
+    # Runs kept in memory; unwatched, older ones are evicted first. Every visitor to a test page
+    # holds one, so this is roughly how many people can test at once (an exact run is about 1 MB).
+    max_live_runs: int = 24
     idle_stop_seconds: int = 600  # stop a running run nobody has watched for this long
     flush_every: int = 50  # steps between database writes
     max_speed: float = 500.0  # steps per second

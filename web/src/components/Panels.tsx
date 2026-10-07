@@ -130,10 +130,10 @@ export function RunHistory({
                   >
                     <td>
                       {r.name}
-                      {r.kind === 'fraud' && (
+                      {(r.kind === 'fraud' || r.kind === 'spam') && (
                         <>
                           {' '}
-                          <span className="chip accent">Fraud test</span>
+                          <span className="chip accent">{r.kind === 'fraud' ? 'Fraud test' : 'Spam test'}</span>
                         </>
                       )}
                     </td>
@@ -159,7 +159,7 @@ export function RunHistory({
                           onOpen(r)
                         }}
                       >
-                        {r.kind === 'fraud' && r.live ? 'Open' : r.live ? 'Watch' : 'Replay'}
+                        {r.kind !== undefined && r.kind !== 'dashboard' && r.live ? 'Open' : r.live ? 'Watch' : 'Replay'}
                       </button>
                     </td>
                   </tr>

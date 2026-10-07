@@ -2,7 +2,7 @@ import { resolve } from 'node:path'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-// Two pages: the dashboard at / and the fraud-detection test at /test/.
+// Three pages: the dashboard at /, the fraud-detection test at /test/ and the spam-filter test at /spam/.
 // Both call the same relative /api paths as in production; in development Vite
 // forwards them (WebSockets included) to uvicorn on :8000.
 export default defineConfig({
@@ -14,6 +14,7 @@ export default defineConfig({
       input: {
         main: resolve(import.meta.dirname, 'index.html'),
         test: resolve(import.meta.dirname, 'test/index.html'),
+        spam: resolve(import.meta.dirname, 'spam/index.html'),
       },
     },
   },

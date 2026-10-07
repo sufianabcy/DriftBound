@@ -7,8 +7,8 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Mode = Literal["exact", "robust"]
-# "fraud" runs belong to the fraud-detection test page; the dashboard never auto-joins them.
-Kind = Literal["dashboard", "fraud"]
+# "fraud" and "spam" runs belong to the two test pages; the dashboard never auto-joins them.
+Kind = Literal["dashboard", "fraud", "spam"]
 
 
 class CreateRun(BaseModel):

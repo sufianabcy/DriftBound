@@ -62,7 +62,7 @@ export default function App() {
     api
       .listRuns()
       .then(async ({ runs }) => {
-        const existing = runs.find((r) => r.live && r.kind !== 'fraud')
+        const existing = runs.find((r) => r.live && (r.kind ?? 'dashboard') === 'dashboard')
         const id = existing ? existing.id : (await api.createRun(DEFAULT_RUN)).run.id
         if (!cancelled) setRunId(id)
       })
@@ -120,9 +120,11 @@ export default function App() {
     })
 
   const openRun = (run: StoredRun) => {
-    if (run.kind === 'fraud' && run.live) {
-      window.location.href = `/test/#run=${run.id}`
-      return
+    if (run.kind === 'fraud' || run.kind === 'spam') {
+      if (run.live) {
+        window.location.href = `${run.kind === 'fraud' ? '/test/' : '/spam/'}#run=${run.id}`
+        return
+      }
     }
     if (run.live) {
       setReplay(null)
@@ -167,6 +169,10 @@ export default function App() {
         </a>
         <div className="topbar-actions">
           <ConnectionPill connection={live.connection} status={run?.status} viewers={run?.viewers} />
+          <a className="btn" href="/spam/">
+            Test spam filtering
+            <ArrowIcon />
+          </a>
           <a className="btn btn-primary" href="/test/">
             Test fraud detection
             <ArrowIcon />

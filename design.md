@@ -30,13 +30,13 @@ run.
 | 7 | Deployment | **Not started** | `deploy/` holds the service unit, deploy script, EC2 bootstrap and env template, all unrun |
 | 8 | Theory and rehearsal | Theory done | `docs/theory.md` has the full proofs; slides, the timed rehearsal and the backup recording are still to do |
 
-Test suite: 65 tests, all passing (the PostgreSQL test runs when `TEST_DATABASE_URL` is set; CI sets it). Full run
+Test suite: 66 tests, all passing (the PostgreSQL test runs when `TEST_DATABASE_URL` is set; CI sets it). Full run
 about 11 seconds.
 
 ## 2. Architecture as built
 
 ```
-browser (React + Recharts): the dashboard at /, the fraud detection test at /test/
+browser (React + Recharts): the dashboard at /, fraud test at /test/, spam test at /spam/
    │  REST commands: /api/runs/...            ▲ WebSocket /api/runs/{id}/live: snapshot, then
    ▼                                          │ batches of ticks about 10 times a second
 FastAPI, one uvicorn process (api/main.py) ───┘
@@ -272,7 +272,8 @@ evicted, and it stays in history. A run left streaming after every tab has close
 watched, therefore stops on its own instead of keeping the t3.micro's CPU busy and the database growing. A tab left
 open counts as a viewer and keeps its run going. These are settings: `MAX_LIVE_RUNS` and `IDLE_STOP_SECONDS`.
 *Corrected 7 October 2026:* this entry first claimed the stop also covered a forgotten open tab, which it does not.
-*Changed 7 October 2026 (D-54):* the cap is now 12, and runs nobody is watching are evicted first.
+*Changed 7 October 2026 (D-54):* the cap is now 12, and runs nobody is watching are evicted first. *Changed again
+(D-59):* 24, for three pages.
 
 **D-36. Speed defaults to 20 steps per second, with a maximum of 500.** A stalled loop drops time rather than racing
 to catch up, with at most 250 steps per burst.
@@ -468,6 +469,51 @@ Fixes that came out of looking:
 - rupee labels crowding the line on a phone: three ticks below 420 px;
 - a hint that said "on the left" on a phone.
 
+### Spam filter test page (7 October 2026, at the user's request)
+
+**D-57. The spam story, and how it maps to the engine.** A separate filter gives every email a spam score from 1 to
+1,023; that score is input x. DriftBound does not score emails: it keeps the cutoff right. Emails at or above the
+cutoff go to the spam folder (prediction 1), the rest to the inbox. The hidden threshold is the score where real spam
+starts, 600 at first. While learning, the engine's query is shown as "Reviewer checked an email scoring 512: not
+spam". While monitoring, labels are users' verdicts, and *p* is the share of emails users report on. A drift is
+spammers changing their wording; a recurring drift is an old campaign returning, found from memory in 2 to 5 reviews.
+A detection is a report that contradicts the cutoff. The page states three simplifications, one sentence each: the
+scores come from a separate filter; there is always an email at the score the engine asks about; real scores are not
+perfectly ordered, which is what the noise-tolerant engine is for.
+
+*One wording refinement, no engine change.* A real user only clicks "Report spam" on an email in the inbox, or "Not
+spam" on one in the spam folder: a report always disagrees with where the email went. The engine's monitoring label
+can also agree with the cutoff. Such a label is shown as "A user opened it and left it where it was". For the exact
+engine it changes nothing once the cutoff is known; the robust engine learns from it. So *p* counts every verdict,
+explicit or implicit.
+
+**D-58. The baseline is computed in the browser.** A filter tuned perfectly on day one (cutoff 600) and never
+changed is applied to the same emails the engine files, and the page counts three numbers for each: spam caught, spam
+delivered to the inbox, real mail sent to spam. Both columns are tallied in the browser from the same ticks, so they
+always cover exactly the same emails: every email since the page opened (after a reload, from the last 50). This
+needed no backend change. *Considered:* counting the baseline in the runner, which would survive reloads but changes
+the runner and the summary; not worth it for a demo page. The engine's numbers start slightly behind the baseline
+(learning, and a change not yet reported) and pull ahead once a wording change is detected.
+
+**D-59. Backend: a third run kind, and room for more runs.** `kind` now accepts `"spam"` (api/schemas.py), so the
+dashboard does not auto-join spam runs and run history tags them. `MAX_LIVE_RUNS` rose from 12 to 24: every visitor
+to either test page holds a run, and an exact-mode run takes on the order of 1 MB. One API test added. The exact
+engine, its proofs and its tests are unchanged. The user approved this change before it was made.
+
+**D-60. Shared code for the two test pages.** `web/src/lib/testRun.ts` (`useTestRun`: one run per visitor, kept in
+the address bar, every command, errors as toasts; and the shared decision helpers) and
+`web/src/components/TestParts.tsx` (header with links to the other pages, the "what is happening now" box, toggles,
+Next / Next 10 / Play, toast). The fraud page now uses both; its behavior and wording are unchanged, except that its
+range label now says ₹10,230, the largest amount, instead of ₹10,240. The number line gained a `spam` wording set
+and an optional dashed reference cutoff, used for the fixed filter. Each page's story stays in its own file
+(`lib/fraud.ts`, `lib/spam.ts`). Simulated subject lines suit the score, not the truth, and are marked as simulated.
+
+**D-61. Checked in the browser.** Headless Chrome at 1440 px and 390 px: learning, a correct email, a typed cutoff of
+350, 40 more emails (DriftBound briefly 1 misfiled behind at 20% reports), then 80 more (10 fewer misfiled than the
+fixed filter after 131 emails); mis-reports raising false alarms with "(by mistake)" in the feed; the noise-tolerant
+engine; no sideways scroll on the phone. The dashboard and /test/ were rechecked: both load, link to /spam/, and the
+dashboard joins only a dashboard run.
+
 ---
 
 ## 4. Changes from the plan
@@ -490,6 +536,7 @@ Fixes that came out of looking:
 | C-14 | Dashboard panels as listed | A reviewer-oriented redesign: one beige theme, "How to read this page", four tiles, controls in three tabs, plain words | D-52, D-55 |
 | C-15 | (not covered) | A fraud detection test page at `/test/`, opened from the top-right button | D-53 |
 | C-16 | Ten endpoints | Also `POST /runs/{id}/step` (with a chosen input), and a run `kind` | D-54 |
+| C-17 | (not covered) | A spam filter test page at `/spam/`, with a baseline that never adapts | D-57 to D-61 |
 
 ---
 
@@ -498,7 +545,7 @@ Fixes that came out of looking:
 | What | How | Result |
 |---|---|---|
 | Engine guarantees | `pytest tests/test_exact.py test_memory.py test_adversary.py test_bounds.py test_robust.py test_runner.py` | 50 passed |
-| API and database | `pytest tests/test_api.py tests/test_db.py` (SQLite) | 14 passed |
+| API and database | `pytest tests/test_api.py tests/test_db.py` (SQLite) | 15 passed |
 | Schema on PostgreSQL | `TEST_DATABASE_URL=... pytest tests/test_db.py` against a throwaway PostgreSQL 18 cluster; `psql -f db/schema.sql` applied twice | Passed; the schema matches the app tables; idempotent |
 | Full API on PostgreSQL | Exact and robust runs through the API with asyncpg | Events, metrics and concepts stored; robust snapshot URI recorded |
 | Lint | `ruff check .`, `ruff format --check .`, `npx oxlint`, `tsc -b` | Clean |
@@ -528,6 +575,8 @@ Fixes that came out of looking:
   relearns on its own first. The error recovers either way. The README's demo script waits accordingly
   (theory.md §7).
 - **The fraud story is a simplification.** On the test page, fraud is every transaction at or above one cutoff.
+- **The spam page's baseline lives in the browser.** Its counts restart on reload (from the last 50 emails) and are
+  not stored (D-58).
 - **One theme.** Viewers whose system is set to dark mode also see the beige theme (D-52).
 
 ---
@@ -582,3 +631,11 @@ All on 7 October 2026, in order.
 26. Updated the docs: README (intro, commands, demo script, API), `web/README.md`, the scenario names in theory.md,
     and the tutorial: the dashboard lesson rewritten, a section on the fraud test page, exercise 10, the API lesson
     (the `/step` endpoint, 12 live runs, the idle-stop sentence), and 20 code links re-pointed after the code moved.
+27. Checked for an interrupted `/transfer/` page or "learn from transfers only" mode: none existed, and the working
+    tree matched the pushed commit, so nothing was removed.
+28. Added the spam filter test page at `/spam/` (D-57, D-58), with the `spam` run kind and 24 live runs (D-59), after
+    the user approved the backend change. Moved the shared test-page code into `lib/testRun.ts` and
+    `components/TestParts.tsx` (D-60). Linked `/spam/` from the dashboard's top right, its "How to read this page" box
+    and the fraud page. One new test; 66 in all, passing.
+29. Checked both test pages and the dashboard in the browser (D-61), and updated README.md, docs/tutorial.md and
+    web/README.md.

@@ -32,6 +32,7 @@
   --warning-soft: #f8e7bd;
   --critical: #d03b3b;
   --critical-soft: #f6ddd6;
+  --critical-ink: #a3302c;
   --focus: #2a78d6;
   --shadow: 0 1px 2px rgba(74, 56, 32, 0.06), 0 8px 24px rgba(74, 56, 32, 0.05);
   --radius: 14px;
@@ -1438,5 +1439,73 @@ dialog h2 {
 
   .topbar-actions .btn-primary {
     flex: 1;
+  }
+}
+
+/* ------------------------------------------------------- spam test page */
+
+.compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.compare-col {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  padding: 12px 14px;
+}
+
+.compare-col.engine {
+  background: var(--accent-soft);
+  border-color: rgba(106, 75, 47, 0.3);
+}
+
+.compare-col h3 {
+  font-size: 1rem;
+  margin-bottom: 8px;
+}
+
+.compare-col dl {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.compare-col dl > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+
+.compare-col dt {
+  color: var(--ink-2);
+}
+
+.compare-col dd {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: 1.45rem;
+}
+
+.compare-col dl > div.bad dd {
+  color: var(--critical-ink);
+}
+
+.score-input input {
+  padding-left: 12px;
+}
+
+.feed-subject {
+  font-style: italic;
+}
+
+@media (max-width: 560px) {
+  .compare {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

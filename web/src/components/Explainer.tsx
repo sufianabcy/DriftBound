@@ -67,8 +67,8 @@ export function Explainer() {
         </li>
       </ol>
       <p className="explainer-foot">
-        Prefer a real-world example? <a href="/test/">Try the fraud detection test</a>: the same engine, with transactions instead of
-        numbers.
+        Prefer a real-world example? Try the <a href="/test/">fraud detection test</a> or the <a href="/spam/">spam filter test</a>: the
+        same engine, with transactions or emails instead of numbers.
       </p>
     </section>
   )

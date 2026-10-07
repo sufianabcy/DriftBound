@@ -33,7 +33,8 @@ export const OUTCOME_TEXT: Record<Outcome, string> = {
 
 export const isWrong = (o: Outcome) => o === 'missed' || o === 'blocked_genuine'
 
-export type Tone = 'good' | 'warning' | 'critical' | 'neutral'
+import type { Tone } from './testRun'
+export type { Tone }
 
 /** One sentence per engine event, in the fraud story; null for events the page does not show. */
 export function fraudEvent(e: RunEvent): { text: string; tone: Tone } | null {

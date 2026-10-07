@@ -43,7 +43,7 @@ class LiveRun:
     stop_reason: str | None = None
     task: asyncio.Task | None = None
     last_watched: float = field(default_factory=time.monotonic)
-    kind: str = "dashboard"  # or "fraud", for the fraud-detection test page
+    kind: str = "dashboard"  # or "fraud" / "spam", for the two test pages
 
 
 class RunManager:

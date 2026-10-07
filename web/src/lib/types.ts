@@ -7,8 +7,8 @@ export type DetectionCause = 'drift' | 'gradual' | 'out_of_family' | 'noise'
 export type ScenarioName = 'monitoring_off' | 'noisy_labels' | 'out_of_family' | 'rapid_fire' | 'all_clear'
 export type DriftKind = 'abrupt' | 'gradual' | 'recurring' | 'out_of_family'
 export type Strategy = 'worst_case' | 'rapid_fire' | 'stealth' | 'noise'
-// 'fraud' runs belong to the fraud-detection test page; the dashboard never joins them.
-export type RunKind = 'dashboard' | 'fraud'
+// 'fraud' and 'spam' runs belong to the two test pages; the dashboard never joins them.
+export type RunKind = 'dashboard' | 'fraud' | 'spam'
 
 export interface InjectedEvent {
   type: 'injected'

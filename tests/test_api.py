@@ -187,6 +187,14 @@ def test_steps_run_on_demand_with_a_chosen_input(client):
     assert listed[run_id]["kind"] == "fraud"
 
 
+def test_spam_runs_are_their_own_kind(client):
+    run_id = create(client, kind="spam", theta=600, p=0.2)
+    assert client.get(f"/api/runs/{run_id}").json()["run"]["kind"] == "spam"
+    listed = {r["id"]: r for r in client.get("/api/runs").json()["runs"]}
+    assert listed[run_id]["kind"] == "spam"
+    assert client.post("/api/runs", json={"kind": "transfer"}).status_code == 422
+
+
 def test_watched_runs_are_evicted_last(tmp_path):
     with make_client(tmp_path, max_live_runs=2) as client:
         watched = create(client)

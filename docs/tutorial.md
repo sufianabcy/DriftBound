@@ -549,7 +549,7 @@ the REST commands, the WebSocket stream and, once built, the dashboard files, so
 | `MODELS_DIR` | `models` | local folder for snapshots |
 | `AWS_REGION` | `ap-south-1` | the region of the S3 bucket |
 | `WEB_DIST` | `web/dist` | the built dashboard |
-| `MAX_LIVE_RUNS` | 12 | runs kept in memory; unwatched runs are evicted first, then paused ones, oldest first |
+| `MAX_LIVE_RUNS` | 24 | runs kept in memory; unwatched runs are evicted first, then paused ones, oldest first. Every test-page visitor holds one |
 | `IDLE_STOP_SECONDS` | 600 | stop a run nobody has watched for 10 minutes |
 | `FLUSH_EVERY` | 50 | steps between database writes |
 | `MAX_SPEED`, `DEFAULT_SPEED` | 500, 20 | steps per second |
@@ -713,9 +713,9 @@ happens, in order.
 
 1. The button calls `onDrift('abrupt')` ([ControlPanel.tsx:161](../web/src/components/ControlPanel.tsx#L161)).
 2. The app's `drift()` wraps the call in `act()`, which disables the buttons while it runs and turns any error into
-   a toast ([App.tsx:143](../web/src/App.tsx#L143)).
+   a toast ([App.tsx:145](../web/src/App.tsx#L145)).
 3. `api.drift()` sends `POST /api/runs/{id}/drift` with `{"type": "abrupt"}` ([api.ts:73](../web/src/lib/api.ts#L73)).
-   In development, Vite forwards `/api` to port 8000 ([vite.config.ts](../web/vite.config.ts#L22)). In production it
+   In development, Vite forwards `/api` to port 8000 ([vite.config.ts](../web/vite.config.ts#L23)). In production it
    is the same server.
 
 **On the server, during the request:**
@@ -858,7 +858,8 @@ back into live-style events, so the same charts can draw them.
 ## Lesson 9: The dashboard
 
 The web app is React 19 and TypeScript, built with Vite, with charts by Recharts and the number line drawn in plain
-SVG. It has two pages: the dashboard at `/` and the fraud detection test at `/test/`. Both only ever call relative
+SVG. It has three pages: the dashboard at `/`, the fraud detection test at `/test/` and the spam filter test at
+`/spam/`. All of them only ever call relative
 `/api` paths, so the same build works behind the Vite proxy and on the server.
 
 ### Files
@@ -911,7 +912,7 @@ act(() => api.something()) ──► REST call ──► API
 
 | Part | What it shows | Reads | File |
 |---|---|---|---|
-| Top bar | the connection pill (Live, Paused, Reconnecting or Not live, with the number watching), and the **Test fraud detection** button, top right, which opens `/test/` | connection, run | App.tsx |
+| Top bar | the connection pill (Live, Paused, Reconnecting or Not live, with the number watching), and the **Test spam filtering** and **Test fraud detection** buttons, top right, which open `/spam/` and `/test/` | connection, run | App.tsx |
 | How to read this page | three numbered sentences for a first-time viewer, and a link to the fraud test. **Hide** is remembered by the browser | | Explainer.tsx |
 | Guarantee banner | green when all four conditions hold in exact mode; red, naming what is broken and why; gray in robust mode | `summary.guarantee`, `conditions` | Overview.tsx |
 | Tiles | false alarms (the hero number), wrong answers, labels used, and detections for the number of rule changes | `summary.counters` | Overview.tsx |
@@ -943,7 +944,7 @@ at first. An analyst check is a label, and fraudsters changing tactics is a drif
 [lib/fraud.ts](../web/src/lib/fraud.ts).
 
 - **Each visitor gets a fresh run**, created with `kind: "fraud"` and left paused, so the dashboard never joins it and
-  reviewers do not disturb each other ([FRAUD_RUN](../web/src/test/FraudTest.tsx#L15)). The run id goes into the
+  reviewers do not disturb each other ([FRAUD_RUN](../web/src/test/FraudTest.tsx#L16)). The run id goes into the
   address bar, so a reload keeps it.
 - **Test a transaction** sends `POST /step` with `x`: exactly one step that processes that amount. The reply shows
   the decision (blocked or approved), what it really was, and whether an analyst checked it.
@@ -951,10 +952,33 @@ at first. An analyst check is a label, and fraudsters changing tactics is a drif
 - **Fraudsters change tactics** injects drifts: smaller or larger amounts, an old pattern back, a gradual switch, or a
   cutoff you type. **Make it harder** turns on wrong analyst answers (noise 10%), stops spot checks (p = 0), makes
   fraud random, or switches to the noise-tolerant engine.
-- **What is happening now** ([narrate](../web/src/lib/fraud.ts#L85)) explains the current state in one paragraph,
+- **What is happening now** ([narrate](../web/src/lib/fraud.ts#L86)) explains the current state in one paragraph,
   including the exact range of amounts judged wrongly after an undetected change.
 - The scoreboard reads `summary.counters.confusion`: fraud stopped, fraud missed and genuine customers blocked are the
   true positives, false negatives and false positives against the true rule.
+
+### The spam filter test page
+
+`/spam/` tells the same story as spam filtering, and adds the one thing a judge most needs to see: a filter that never
+adapts, beside the engine, on the same emails. The vocabulary lives in [lib/spam.ts](../web/src/lib/spam.ts).
+
+- **The story.** A separate filter gives every email a spam score from 1 to 1,023: that is input x. DriftBound does
+  not score emails; it keeps the cutoff right. At or above the cutoff an email goes to the spam folder, below it to
+  the inbox. Real spam starts at score 600 at first. While learning, the engine's question appears as "Reviewer
+  checked an email scoring 512: not spam". While monitoring, labels are users' verdicts, and p, 20% by default, is
+  the share of emails users report on ([SPAM_RUN](../web/src/spam/SpamTest.tsx#L27)).
+- **Reports.** A real report disagrees with where the email went ("Report spam" in the inbox, "Not spam" in the spam
+  folder). A verdict that agrees is shown as "A user opened it and left it where it was".
+- **The comparison** ([useComparison](../web/src/spam/SpamTest.tsx#L64)) files every email the page
+  receives twice: by the engine, and by a filter frozen at cutoff 600. It counts spam caught, spam delivered to the
+  inbox, and real mail sent to spam for each. It runs in the browser, over every email since the page opened.
+- **Spammers change their wording**: spam slips in with lower scores, moves to higher scores, rewords gradually, a
+  typed cutoff, or "An old campaign returns" (memory finds it in 2 to 5 reviews). **Make it harder**: the report
+  share (100%, 20% or 5%), users mis-report, nobody reports, spam with no score pattern, the noise-tolerant engine.
+- Subject lines are invented to suit the score, and marked as simulated. Three sentences under "About this
+  simulation" state the page's simplifications.
+- The two test pages share their run handling ([lib/testRun.ts](../web/src/lib/testRun.ts)) and page parts
+  ([components/TestParts.tsx](../web/src/components/TestParts.tsx)); each keeps its own story file.
 
 ### Design rules
 
@@ -1117,6 +1141,12 @@ learns that fraud starts at ₹6,000. Send ₹5,000 (approved, genuine). Under "
 ₹3,000, then send ₹4,500. The engine still approves it, but it was fraud: the analyst's check contradicts the
 engine's rule, the row turns red, and the engine starts relearning. Press Next 10 again and it settles on ₹3,000.
 
+**11. Beat a filter that never adapts.** Click Test spam filtering, top right. Press Next 10: ten reviews set the
+cutoff at score 600, and the comparison is level. Under "Or choose where spam starts", set 350, then press Next 10
+several times. Spam scoring 350 to 599 lands in the inbox for both filters until a user reports one (at 20% reports
+this can take dozens of emails). Then DriftBound relearns, and its "Spam delivered to the inbox" stops growing while
+the fixed filter's keeps climbing. Now press "An old campaign returns" and count the reviews: 2 to 5.
+
 ---
 
 ## Where to change things
@@ -1138,6 +1168,7 @@ engine's rule, the row turns red, and the engine starts relearning. Press Next 1
 | add a database column | the table in api/db.py, and db/schema.sql | the column lists in db.py. An existing PostgreSQL also needs `ALTER TABLE`, because the app creates only missing tables. |
 | change a color | the tokens at the top of styles.css (one theme) | check contrast and color-blind separation again |
 | change the fraud story | `RUPEES_PER_STEP` in web/src/lib/fraud.ts, `FRAUD_RUN` (the starting cutoff) in web/src/test/FraudTest.tsx | the wording in `narrate()` and `fraudEvent()` |
+| change the spam story | `START_CUTOFF` and the subject lines in web/src/lib/spam.ts, `SPAM_RUN` (report share) in web/src/spam/SpamTest.tsx | the wording in `narrateSpam()` and `spamEvent()` |
 
 Whatever you change, record the decision in [design.md](../design.md).
 

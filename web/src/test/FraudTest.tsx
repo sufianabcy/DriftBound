@@ -1,38 +1,24 @@
-import { useCallback, useEffect, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
-import { api, DEFAULT_RUN } from '../lib/api'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
+import { DEFAULT_RUN } from '../lib/api'
 import type { NewRun } from '../lib/api'
 import { fraudEvent, inputFor, isWrong, money, narrate, OUTCOME_TEXT, outcomeOf, RUPEES_PER_STEP } from '../lib/fraud'
-import type { Tone } from '../lib/fraud'
 import { int } from '../lib/format'
-import type { DriftKind, Mode, RunState, StepResult, Summary, Tick } from '../lib/types'
-import { useLiveRun } from '../lib/useLiveRun'
+import { randomBetween, useTestRun } from '../lib/testRun'
+import type { Tone } from '../lib/testRun'
+import type { DriftKind, Mode, Summary, Tick } from '../lib/types'
 import { NumberLine } from '../components/NumberLine'
-import { ArrowIcon, BrandMark, Card, ConnectionPill, PauseIcon, PlayIcon, Status, StatusIcon } from '../components/ui'
+import { EndedBar, NowCard, StepControls, TestHeader, Toast, Toggle } from '../components/TestParts'
+import { Card, Status, StatusIcon } from '../components/ui'
 import type { StatusKind } from '../components/ui'
 
 // Fraud starts at ₹6,000 until the fraudsters change tactics.
 const FRAUD_RUN: NewRun = { ...DEFAULT_RUN, kind: 'fraud', name: 'Fraud detection test', theta: 600, start: false, speed: 2 }
 const QUICK_AMOUNTS = [500, 2500, 5000, 7500, 9500]
-const SPEEDS = [1, 2, 5, 20]
 const MIN_MOVE = 128 // fraudsters move the cutoff by at least ₹1,280, so the change is easy to see
 const FEED_SIZE = 30
 
-const runFromHash = () => new URLSearchParams(window.location.hash.slice(1)).get('run')
-const randomBetween = (lo: number, hi: number) => lo + Math.floor(Math.random() * (hi - lo + 1))
-
 const TONE_STATUS: Record<Tone, StatusKind> = { good: 'good', warning: 'warning', critical: 'critical', neutral: 'neutral' }
-const TONE_CLASS: Record<Tone, string> = { good: 'ok', warning: 'warn', critical: 'bad', neutral: '' }
-
-// React mounts effects twice in development; share one request so only one run is created.
-let pending: Promise<RunState> | null = null
-function createFraudRun(): Promise<RunState> {
-  if (!pending) {
-    pending = api.createRun(FRAUD_RUN)
-    pending.finally(() => window.setTimeout(() => (pending = null), 0)).catch(() => undefined)
-  }
-  return pending
-}
 
 function friendly(message: string): string {
   if (message.includes('no earlier rule')) return 'There is no earlier pattern yet. Change the tactics first, then bring the old pattern back.'
@@ -41,94 +27,22 @@ function friendly(message: string): string {
 }
 
 export default function FraudTest() {
-  const [runId, setRunId] = useState<string | null>(runFromHash)
-  const live = useLiveRun(runId)
-  const { apply, applyStep } = live
-  const [busy, setBusy] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
+  const t = useTestRun(FRAUD_RUN, friendly)
+  const { live, summary: s, run, busy } = t
   const [result, setResult] = useState<Tick | null>(null)
 
-  useEffect(() => {
-    if (runId) return
-    let cancelled = false
-    createFraudRun()
-      .then((state) => {
-        if (!cancelled) setRunId(state.run.id)
-      })
-      .catch((e: Error) => setToast(`Cannot reach the API: ${e.message}`))
-    return () => {
-      cancelled = true
-    }
-  }, [runId])
-
-  useEffect(() => {
-    if (runId) window.history.replaceState(null, '', `#run=${runId}`)
-  }, [runId])
-
-  useEffect(() => {
-    if (!toast) return
-    const timer = window.setTimeout(() => setToast(null), 6000)
-    return () => window.clearTimeout(timer)
-  }, [toast])
-
-  /** Run a command; show its fresh state (and any new transactions) at once, or its error as a toast. */
-  const act = useCallback(
-    async (fn: () => Promise<unknown>) => {
-      setBusy(true)
-      try {
-        const out = await fn()
-        if (out && typeof out === 'object' && 'ticks' in out) applyStep(out as StepResult)
-        else if (out && typeof out === 'object' && 'summary' in out) apply(out as RunState)
-      } catch (e) {
-        setToast(friendly((e as Error).message))
-      } finally {
-        setBusy(false)
-      }
-    },
-    [apply, applyStep],
-  )
-
-  const s = live.summary
-  const run = live.run
-  const id = run?.id ?? runId
-
-  const startOver = () => {
-    setResult(null)
-    void act(async () => {
-      const state = await createFraudRun()
-      setRunId(state.run.id)
-      return state
-    })
-  }
-
-  const send = (x: number) =>
-    id &&
-    act(async () => {
-      const out = await api.step(id, 1, x)
-      setResult(out.ticks[0] ?? null)
-      return out
-    })
+  const send = async (x: number) => setResult(await t.send(x))
   // Any other action makes the last test's result stale, so it is cleared.
-  const next = (count: number) => {
-    setResult(null)
-    return id && act(() => api.step(id, count))
-  }
-  const drift = (kind: DriftKind, theta?: number) => {
-    setResult(null)
-    return id && act(() => api.drift(id, kind, theta))
-  }
-  const patch = (body: Parameters<typeof api.patchRun>[1]) => {
-    setResult(null)
-    return id && act(() => api.patchRun(id, body))
-  }
-  const playPause = (speed: number) =>
-    id &&
-    run &&
-    act(async () => {
-      if (run.status === 'running') return api.stop(id)
-      await api.patchRun(id, { speed })
-      return api.start(id)
-    })
+  const clearing =
+    <A extends unknown[]>(fn: (...args: A) => unknown) =>
+    (...args: A) => {
+      setResult(null)
+      fn(...args)
+    }
+  const next = clearing(t.next)
+  const drift = clearing(t.drift)
+  const patch = clearing(t.patch)
+  const startOver = clearing(t.startOver)
 
   const last = live.ticks.length ? live.ticks[live.ticks.length - 1] : null
   const marker = last
@@ -140,31 +54,17 @@ export default function FraudTest() {
 
   return (
     <div className="app">
-      <header className="topbar">
-        <a className="brand" href="/">
-          <BrandMark />
-          <div style={{ minWidth: 0 }}>
-            <h1>DriftBound</h1>
-            <div className="brand-sub">Fraud detection test</div>
-          </div>
-        </a>
-        <div className="topbar-actions">
-          <ConnectionPill connection={live.connection} status={run?.status} />
-          <a className="btn" href="/">
-            <ArrowIcon back />
-            Back to dashboard
-          </a>
-        </div>
-      </header>
+      <TestHeader
+        subtitle="Fraud detection test"
+        connection={live.connection}
+        status={run?.status}
+        links={[
+          { href: '/spam/', label: 'Spam filter test' },
+          { href: '/', label: 'Back to dashboard' },
+        ]}
+      />
 
-      {live.connection === 'gone' && (
-        <div className="replay-bar" role="alert">
-          <span>This test has ended: the server restarted or the test sat idle for too long.</span>
-          <button type="button" className="btn btn-primary" onClick={startOver}>
-            Start a new test
-          </button>
-        </div>
-      )}
+      {live.connection === 'gone' && <EndedBar onStartOver={startOver} />}
 
       {s && run ? (
         <>
@@ -176,7 +76,7 @@ export default function FraudTest() {
                 id="line"
                 className="order-2"
                 title="Where fraud starts"
-                subtitle={`Amounts from ${money(1)} to ${money(s.n + 1)}. The engine's cutoff is blue; the real one, which it never sees, is the triangle.`}
+                subtitle={`Amounts from ${money(1)} to ${money(s.n)}. The engine's cutoff is blue; the real one, which it never sees, is the triangle.`}
                 actions={<StateChip summary={s} />}
               >
                 <NumberLine variant="fraud" summary={s} marker={marker} onPick={(theta) => drift('abrupt', theta)} />
@@ -200,7 +100,7 @@ export default function FraudTest() {
                 result={result}
                 onSend={send}
                 onNext={next}
-                onPlayPause={playPause}
+                onPlayPause={t.playPause}
                 onSpeed={(speed) => run.status === 'running' && patch({ speed })}
               />
               <TacticsCard className="order-3" summary={s} busy={busy} onDrift={drift} />
@@ -212,14 +112,7 @@ export default function FraudTest() {
         <div className="card empty">Setting up your test…</div>
       )}
 
-      {toast && (
-        <div className="toast" role="alert">
-          <span>{toast}</span>
-          <button type="button" onClick={() => setToast(null)}>
-            Dismiss
-          </button>
-        </div>
-      )}
+      <Toast message={t.toast} onDismiss={() => t.setToast(null)} />
     </div>
   )
 }
@@ -261,11 +154,7 @@ function Story({ summary }: { summary: Summary }) {
           </li>
         </ol>
       </Card>
-      <div className={`now ${TONE_CLASS[now.tone]}`} role="status" aria-live="polite">
-        <span className="now-label">What is happening now</span>
-        <h2>{now.title}</h2>
-        <p>{now.body}</p>
-      </div>
+      <NowCard {...now} />
     </div>
   )
 }
@@ -315,7 +204,6 @@ function SendCard({
   className?: string
 }) {
   const [amount, setAmount] = useState('5000')
-  const [pace, setPace] = useState(SPEEDS.includes(speed) ? speed : 2)
   const max = s.n * RUPEES_PER_STEP
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -354,38 +242,15 @@ function SendCard({
       </div>
       {result && <Result t={result} />}
 
-      <div className="section-label" style={{ marginTop: 18 }}>
-        Or let transactions arrive
-      </div>
-      <div className="step-buttons">
-        <button type="button" className="btn" disabled={busy} onClick={() => onNext(1)}>
-          Next transaction
-        </button>
-        <button type="button" className="btn" disabled={busy} onClick={() => onNext(10)}>
-          Next 10
-        </button>
-      </div>
-      <div className="play-row">
-        <button type="button" className="btn" disabled={busy} onClick={() => onPlayPause(pace)}>
-          {running ? <PauseIcon /> : <PlayIcon />}
-          {running ? 'Pause' : 'Play'}
-        </button>
-        <select
-          aria-label="Transactions per second"
-          value={pace}
-          onChange={(e) => {
-            const v = Number(e.target.value)
-            setPace(v)
-            onSpeed(v)
-          }}
-        >
-          {SPEEDS.map((v) => (
-            <option key={v} value={v}>
-              {v} per second
-            </option>
-          ))}
-        </select>
-      </div>
+      <StepControls
+        noun={{ one: 'transaction', many: 'transactions' }}
+        busy={busy}
+        running={running}
+        speed={speed}
+        onNext={onNext}
+        onPlayPause={onPlayPause}
+        onSpeed={onSpeed}
+      />
     </Card>
   )
 }
@@ -499,30 +364,6 @@ function TacticsCard({
         You can also click anywhere on the cutoff line.
       </p>
     </Card>
-  )
-}
-
-function Toggle({
-  title,
-  on,
-  onChange,
-  busy,
-  children,
-}: {
-  title: string
-  on: boolean
-  onChange: (on: boolean) => void
-  busy: boolean
-  children: ReactNode
-}) {
-  return (
-    <li className="action-row">
-      <h3>{title}</h3>
-      <button type="button" className="btn btn-small" aria-pressed={on} disabled={busy} onClick={() => onChange(!on)}>
-        {on ? 'Turn off' : 'Turn on'}
-      </button>
-      <p>{children}</p>
-    </li>
   )
 }
 

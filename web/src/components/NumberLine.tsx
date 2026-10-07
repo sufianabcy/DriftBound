@@ -76,6 +76,27 @@ const WORDS = {
     robust: 'The noise-tolerant engine keeps no range; the dot is its estimate.',
     tap: 'Click or tap the line to set where fraud starts.',
   },
+  spam: {
+    value: (t: number) => int(t),
+    band: 'Possible cutoffs',
+    engine: "Engine's cutoff",
+    model: "Engine's estimate",
+    truth: 'Where spam really starts (hidden)',
+    stored: 'Cutoffs from earlier campaigns',
+    wrong: 'Misfiled',
+    engineAt: (t: number) => `engine: spam from score ${int(t)}`,
+    engineRange: (count: number) => `${int(count)} possible cutoffs`,
+    modelAt: (t: number) => `engine: spam from about score ${int(t)}`,
+    truthAt: (t: number) => `real: spam from score ${int(t)}`,
+    moving: (a: number, b: number) => `real cutoff moving ${int(a)} → ${int(b)}`,
+    random: 'Real spam: random, no cutoff fits',
+    pick: (t: number) => `Click to make spam start at score ${int(t)}`,
+    learning: 'Each review rules out half of the possible cutoffs.',
+    converged: 'One cutoff left: every email is filed right until spammers change their wording.',
+    stale: 'Spammers moved the cutoff: emails in the red zone are misfiled until a report exposes it.',
+    robust: 'The noise-tolerant engine keeps no range; the dot is its estimate.',
+    tap: 'Click or tap the line to set where spam starts.',
+  },
 }
 
 export interface LineMarker {
@@ -86,6 +107,8 @@ export interface LineMarker {
 interface Props {
   summary: Summary
   marker?: LineMarker | null
+  /** A fixed cutoff to draw for comparison, such as a filter that never adapts. */
+  reference?: { value: number; label: string } | null
   onPick?: (theta: number) => void
   variant?: keyof typeof WORDS
 }
@@ -94,7 +117,7 @@ interface Props {
  * The thresholds 1..n+1 on a line. The band is every rule the engine still
  * considers possible; watching it collapse is watching the engine learn.
  */
-export function NumberLine({ summary: s, marker, onPick, variant = 'rule' }: Props) {
+export function NumberLine({ summary: s, marker, reference, onPick, variant = 'rule' }: Props) {
   const w = WORDS[variant]
   const [ref, width] = useWidth()
   const [hover, setHover] = useState<number | null>(null)
@@ -166,6 +189,12 @@ export function NumberLine({ summary: s, marker, onPick, variant = 'rule' }: Pro
           </svg>
           {w.truth}
         </span>
+        {reference && (
+          <span className="legend-item">
+            <span className="key-dash" />
+            {reference.label}
+          </span>
+        )}
         {s.memory.length > 0 && (
           <span className="legend-item">
             <svg width="6" height="12">
@@ -241,6 +270,21 @@ export function NumberLine({ summary: s, marker, onPick, variant = 'rule' }: Pro
             stroke="var(--ink)"
             strokeWidth="1.6"
           />
+        )}
+
+        {/* a fixed cutoff, for comparison */}
+        {reference && (
+          <g>
+            <line
+              x1={x(reference.value)}
+              x2={x(reference.value)}
+              y1={TRACK_Y - 22}
+              y2={TRACK_Y + 14}
+              stroke="var(--ink-2)"
+              strokeWidth="1.5"
+              strokeDasharray="3 3"
+            />
+          </g>
         )}
 
         {/* the engine's rule */}
