@@ -372,7 +372,7 @@ dashboard.
 
 ### Tutorial
 
-**D-51. A tutorial built from real runs.** `docs/tutorial.md` walks through the whole service in eleven lessons, from
+**D-51. A tutorial built from real runs (later removed, D-62).** `docs/tutorial.md` walks through the whole service in eleven lessons, from
 the idea to deployment, followed by exercises, a "where to change things" table and a glossary. Every example comes
 from running the code rather than reading it. The engine traces are seeded, so a reader can reproduce them. The API
 session ran the real app in-process through FastAPI's TestClient against a scratch SQLite file, so no server or port
@@ -514,6 +514,12 @@ fixed filter after 131 emails); mis-reports raising false alarms with "(by mista
 engine; no sideways scroll on the phone. The dashboard and /test/ were rechecked: both load, link to /spam/, and the
 dashboard joins only a dashboard run.
 
+**D-62. A leaner repo for submission.** The README is the single entry point: problem, guarantees, pages, tech
+stack, architecture, setup, configuration, demo script, API, deployment and limitations. `web/README.md` was folded
+into it, and `docs/tutorial.md` (D-51) and `.vscode/` were removed as not needed to run, judge or deploy the project;
+both remain in git history. Kept: this file (the decision record) and `docs/theory.md` (the proofs the guarantees rest
+on). *Considered:* keeping the tutorial, rejected at the user's request to drop extra files.
+
 ---
 
 ## 4. Changes from the plan
@@ -562,8 +568,6 @@ dashboard joins only a dashboard run.
   first whether CloudFront is available on the account's plan; the fallback is the Elastic IP over plain HTTP. Create
   the RDS instance with the initial database name `driftbound`.
 - **Rehearsal (milestone 8):** slides, a timed five-minute demo run twice, and a backup screen recording.
-- **Nothing has been committed.** The repo was initialized with `git init` but has no commits. Commit, push to
-  GitHub, and CI will run.
 - **Live state is in memory.** A server restart ends live runs; their history stays in the database. This is by design
   (one uvicorn worker), and the dashboard offers to start a new run.
 - **Membership queries are an assumption.** Exact mode assumes a labeler who can answer "what is the label of x?" for
@@ -639,3 +643,4 @@ All on 7 October 2026, in order.
     and the fraud page. One new test; 66 in all, passing.
 29. Checked both test pages and the dashboard in the browser (D-61), and updated README.md, docs/tutorial.md and
     web/README.md.
+30. (8 October 2026) Rewrote README.md for the submission and removed `web/README.md`, `docs/tutorial.md` and `.vscode/` (D-62).
